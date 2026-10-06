@@ -1,0 +1,34 @@
+{
+  "name": "pi-auto-handoff",
+  "version": "0.1.0",
+  "description": "Pi extension that automatically hands the session off to a fresh context when the context window runs low (default: 20% remaining), using the handoff skill.",
+  "license": "MIT",
+  "type": "module",
+  "keywords": [
+    "pi-package",
+    "pi",
+    "handoff",
+    "context-window",
+    "extension"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/crooy/pi-auto-handoff"
+  },
+  "scripts": {
+    "test": "bash test/run-tests.sh",
+    "smoke": "bash test/smoke.sh",
+    "install:pi": "pi install ."
+  },
+  "pi": {
+    "extensions": [
+      "extensions/auto-handoff"
+    ],
+    "skills": [
+      "skills/handoff"
+    ]
+  },
+  "devDependencies": {
+    "@earendil-works/pi-coding-agent": "*"
+  }
+}
