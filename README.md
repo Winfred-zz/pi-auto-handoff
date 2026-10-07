@@ -43,7 +43,7 @@ It's a **pi package** (`package.json` with a `pi` manifest), so one command is
 all it takes:
 
 ```bash
-pi install git:https://tangled.org/did:plc:ji4vlacmth7vku3hchjfm3qu/pi-auto-handoff
+pi install git:https://tangled.org/crooy.tngl.sh/pi-auto-handoff
 ```
 
 (`pi install npm:pi-auto-handoff` and `pi install ./path` work too.)
@@ -53,7 +53,7 @@ pi install git:https://tangled.org/did:plc:ji4vlacmth7vku3hchjfm3qu/pi-auto-hand
 Prefer not to register a package? Clone and run the installer script instead:
 
 ```bash
-git clone https://tangled.org/did:plc:ji4vlacmth7vku3hchjfm3qu/pi-auto-handoff
+git clone https://tangled.org/crooy.tngl.sh/pi-auto-handoff
 cd pi-auto-handoff
 ./install.sh                 # user install: ~/.pi/agent/extensions + skills
 ```
