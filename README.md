@@ -40,7 +40,8 @@ switches to a brand-new session and continues with:
 Requires [pi](https://github.com/earendil-works/pi) ≥ 1.0 and Node ≥ 22.
 
 ```bash
-git clone <this repo> && cd pi-auto-handoff
+git clone https://tangled.org/did:plc:ji4vlacmth7vku3hchjfm3qu/pi-auto-handoff
+cd pi-auto-handoff
 ./install.sh                 # user install: ~/.pi/agent/extensions + skills
 ```
 
@@ -58,8 +59,8 @@ backups of anything it replaces, and verifies that a real `pi` loads the
 extension before declaring success.
 
 Already a **pi package** (`package.json` with a `pi` manifest), so
-`pi install npm:pi-auto-handoff` / `pi install git:…` / `pi install ./path`
-work too.
+`pi install git:https://tangled.org/did:plc:ji4vlacmth7vku3hchjfm3qu/pi-auto-handoff`
+(`npm:pi-auto-handoff` / `./path` work too) is enough — no cloning by hand.
 
 ## Usage
 
