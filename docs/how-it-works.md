@@ -9,7 +9,7 @@ After **every agent run** (`agent_end`), the extension asks pi for the current
 context usage (`ctx.getContextUsage()`). When
 
 ```
-100 - usedPercent <= thresholdPercent        (default threshold: 20)
+100 - usedPercent <= thresholdPercent        (default threshold: 40)
 ```
 
 and all guard conditions hold, a handoff starts.
@@ -30,8 +30,8 @@ Guard conditions (each prevents a wrong-time handoff):
 The extension sends one user message via `pi.sendUserMessage(..., { expandPromptTemplates: true })`:
 
 ```
-/skill:handoff AUTO-HANDOFF (triggered automatically ...): the context window is
-nearly full (81.3% used, only 18.7% left, threshold 20).
+/skill:handoff AUTO-HANDOFF (triggered automatically ...): the auto-handoff
+threshold is reached (61.3% used, only 38.7% left, threshold 40).
 Write the handoff document to exactly this path: /tmp/pi-handoff-2026-10-21T14-05-11-123Z.md
 Do not ask for confirmation and do not start any new work. ...
 ```

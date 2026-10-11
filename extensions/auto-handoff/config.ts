@@ -11,7 +11,7 @@
  *   4. Defaults
  */
 
-export const DEFAULT_THRESHOLD_PERCENT = 20;
+export const DEFAULT_THRESHOLD_PERCENT = 40;
 export const MIN_THRESHOLD_PERCENT = 1;
 export const MAX_THRESHOLD_PERCENT = 90;
 export const DEFAULT_MIN_MESSAGES = 4;
@@ -26,7 +26,7 @@ export interface AutoHandoffConfig {
 	enabled: boolean;
 	/**
 	 * Auto-handoff triggers when this much of the context window REMAINS.
-	 * Default 20 means: hand off once 80% of the window has been used.
+	 * Default 40 means: hand off once 60% of the window has been used.
 	 */
 	thresholdPercent: number;
 	/** Minimum branch entries required before a handoff is allowed. Default: 4. */

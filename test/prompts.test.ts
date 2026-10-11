@@ -4,6 +4,7 @@ import {
 	buildInlineSkillMessage,
 	renderContinuePrompt,
 	renderHandoffArgs,
+	renderManualHandoffArgs,
 	BUNDLED_HANDOFF_SKILL_BODY,
 } from "../extensions/auto-handoff/prompts.ts";
 import { DEFAULT_CONTINUE_PROMPT } from "../extensions/auto-handoff/config.ts";
@@ -20,6 +21,7 @@ describe("renderHandoffArgs", () => {
 		assert.match(args, /82\.3% used/);
 		assert.match(args, /17\.7% left/);
 		assert.match(args, /threshold 20%/);
+		assert.match(args, /threshold is reached/);
 	});
 
 	it("pins the exact target path", () => {
@@ -29,6 +31,26 @@ describe("renderHandoffArgs", () => {
 	it("tells the agent not to start new work and not to ask", () => {
 		assert.match(args, /Do not ask for confirmation/);
 		assert.match(args, /do not start any new work/);
+	});
+});
+
+describe("renderManualHandoffArgs", () => {
+	it("frames the trigger as user-requested and pins the exact path", () => {
+		const args = renderManualHandoffArgs({ path: "/tmp/pi-handoff-now.md" });
+		assert.match(args, /requested by the user via the \/handoff command/);
+		assert.match(args, /exactly this path: \/tmp\/pi-handoff-now\.md/);
+		assert.match(args, /Do not ask for confirmation/);
+		assert.ok(!args.includes("triggered automatically"), "must not claim an automatic trigger");
+	});
+
+	it("passes the focus through verbatim when given", () => {
+		const args = renderManualHandoffArgs({ path: "/tmp/h.md", focus: "ship the parser rewrite" });
+		assert.match(args, /Focus of the handoff and of the next session: ship the parser rewrite/);
+	});
+
+	it("omits the focus line when no focus is given", () => {
+		const args = renderManualHandoffArgs({ path: "/tmp/h.md" });
+		assert.ok(!args.includes("Focus of the handoff"));
 	});
 });
 

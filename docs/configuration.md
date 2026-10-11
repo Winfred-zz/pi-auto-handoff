@@ -2,8 +2,9 @@
 
 ## Default behaviour
 
-Auto-handoff triggers when **20% of the context window remains** (i.e. at 80%
-used), after an agent run completes, in interactive (`tui`) or `rpc` mode.
+Auto-handoff triggers when **40% of the context window remains** (i.e. once 60%
+is used up), after an agent run completes, in interactive (`tui`) or `rpc`
+mode.
 
 ## The `/autohandoff` command
 
@@ -14,6 +15,18 @@ used), after an agent run completes, in interactive (`tui`) or `rpc` mode.
 | `/autohandoff on` / `/autohandoff off` | Enable/disable for **this session**. |
 | `/autohandoff test` | Force a handoff right now, regardless of usage. Great for trying the flow end-to-end. |
 | `/autohandoff reset` | Clear the state machine and this session's overrides. |
+
+## The `/handoff` command
+
+| Invocation | Effect |
+|---|---|
+| `/handoff` | Hand off right now: the agent writes a handoff document, then a fresh session starts (context cleared) and continues from it. |
+| `/handoff <focus>` | Same, with the argument recorded as the focus for the next session. |
+
+Works regardless of the threshold, and even when the automatic trigger is
+disabled (`/autohandoff off`) — it is explicit user intent. Unlike
+`/autohandoff test`, the message to the agent is framed as user-requested
+rather than as an automatic low-context trigger.
 
 There is also an internal `/autohandoff-switch <path>` command. You normally
 never call it — the extension dispatches it after the handoff document is
@@ -40,7 +53,7 @@ All keys are optional; unknown or malformed values are ignored.
 {
   "autoHandoff": {
     "enabled": true,
-    "thresholdPercent": 20,
+    "thresholdPercent": 40,
     "minMessages": 4,
     "modes": ["tui", "rpc"],
     "continuePrompt": "Continue given this handoff: {path}\n\nRead the handoff document at that path first, then continue the work from where it leaves off."
@@ -51,7 +64,7 @@ All keys are optional; unknown or malformed values are ignored.
 | Key | Default | Meaning |
 |---|---|---|
 | `enabled` | `true` | Master switch. |
-| `thresholdPercent` | `20` | Hand off when this much of the window **remains**. Clamped to 1–90. |
+| `thresholdPercent` | `40` | Hand off when this much of the window **remains**. Clamped to 1–90. |
 | `minMessages` | `4` | Minimum branch entries before a handoff is allowed (loop guard). |
 | `modes` | `["tui", "rpc"]` | Pi run modes in which triggering is allowed. |
 | `continuePrompt` | see above | Template for the fresh session's first prompt. `{path}` is replaced with the handoff document path. |

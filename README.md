@@ -2,7 +2,7 @@
 
 A [Pi](https://github.com/earendil-works/pi) extension that automatically hands
 your session off to a **fresh context** when the context window runs low —
-default: at **20% remaining**.
+default: at **40% remaining** (i.e. once 60% is used up).
 
 Instead of letting the conversation degrade into compaction summaries, the
 extension has the agent write a proper **handoff document** (using the
@@ -12,7 +12,7 @@ switches to a brand-new session and continues with:
 > Continue given this handoff: /tmp/pi-handoff-2026-10-21T14-05-11-123Z.md
 
 ```
- you, working ──► context fills up ──► ⚡ 20% left
+ you, working ──► context fills up ──► ⚡ 40% left
                                         │
                        agent writes handoff doc (handoff skill)
                                         │
@@ -23,7 +23,8 @@ switches to a brand-new session and continues with:
 
 - **Automatic** — one `agent_end` check per run; zero interaction needed.
 - **Threshold configurable** — `/autohandoff <percent>`, CLI flag, or
-  `settings.json`. Default `20` (% of the window remaining).
+  `settings.json`. Default `40` (% of the window remaining — i.e. hands off
+  once 60% is used up).
 - **Uses the real handoff skill** — the extension dispatches `/skill:handoff`
   through pi's own skill expansion, so your installed/customised skill wins;
   a bundled copy is inlined only as a fallback.
@@ -73,8 +74,8 @@ extension before declaring success.
 
 ## Usage
 
-Usually: nothing. Work until the context window is nearly full; when ≤ 20%
-remains, the extension kicks in:
+Usually: nothing. When ≤ 40% of the context window remains (i.e. once 60% is
+used up), the extension kicks in:
 
 1. The agent is asked to run the **handoff skill** and write the document to a
    known temp path (no new work, no confirmation prompts).
@@ -90,6 +91,7 @@ remains, the extension kicks in:
 | `/autohandoff on` / `off` | Enable/disable for this session. |
 | `/autohandoff test` | Force a handoff right now — try the whole flow in one step. |
 | `/autohandoff reset` | Reset state + session overrides. |
+| `/handoff [focus]` | Hand off now: the agent writes a handoff document, then a fresh session continues from it. Optional arg = focus for the next session. |
 | `/autohandoff-switch <path>` | Internal; also usable manually to start a fresh session from any handoff doc. |
 
 ### Flags & settings
@@ -104,7 +106,7 @@ pi --no-auto-handoff               # off for one invocation
 {
   "autoHandoff": {
     "enabled": true,
-    "thresholdPercent": 20,
+    "thresholdPercent": 40,
     "minMessages": 4,
     "modes": ["tui", "rpc"],
     "continuePrompt": "Continue given this handoff: {path}\n\nRead the handoff document at that path first, then continue the work from where it leaves off."

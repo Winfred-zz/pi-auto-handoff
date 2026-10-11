@@ -10,9 +10,9 @@ import {
 } from "../extensions/auto-handoff/config.ts";
 
 describe("defaults", () => {
-	it("hands off at 20% remaining by default", () => {
+	it("hands off at 40% remaining by default", () => {
 		assert.equal(DEFAULT_CONFIG.thresholdPercent, DEFAULT_THRESHOLD_PERCENT);
-		assert.equal(DEFAULT_THRESHOLD_PERCENT, 20);
+		assert.equal(DEFAULT_THRESHOLD_PERCENT, 40);
 		assert.equal(DEFAULT_CONFIG.enabled, true);
 		assert.deepEqual([...DEFAULT_CONFIG.modes], ["tui", "rpc"]);
 	});
@@ -41,7 +41,7 @@ describe("clampThreshold", () => {
 describe("resolveConfig precedence", () => {
 	it("uses defaults with no input", () => {
 		const config = resolveConfig();
-		assert.equal(config.thresholdPercent, 20);
+		assert.equal(config.thresholdPercent, 40);
 		assert.equal(config.enabled, true);
 	});
 
@@ -61,7 +61,7 @@ describe("resolveConfig precedence", () => {
 		const config = resolveConfig({
 			settings: { autoHandoff: { thresholdPercent: "banana", enabled: "sometimes", minMessages: -3 } },
 		});
-		assert.equal(config.thresholdPercent, 20);
+		assert.equal(config.thresholdPercent, 40);
 		assert.equal(config.enabled, true);
 		assert.equal(config.minMessages, 4);
 	});

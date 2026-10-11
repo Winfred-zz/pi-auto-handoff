@@ -2,7 +2,7 @@
  * pi-auto-handoff — automatic context handoff for Pi.
  *
  * Watches the context window after every agent run. When only
- * `thresholdPercent` (default 20%) of the window remains, it:
+ * `thresholdPercent` (default 40%) of the window remains, it:
  *
  *   1. Sends the agent the `/skill:handoff` skill (the packaged handoff skill,
  *      inlined verbatim if no installed copy is found) with instructions to
@@ -29,6 +29,7 @@ import {
 import {
 	renderContinuePrompt,
 	renderHandoffArgs,
+	renderManualHandoffArgs,
 	buildInlineSkillMessage,
 	BUNDLED_HANDOFF_SKILL_BODY,
 } from "./prompts.ts";
@@ -132,33 +133,50 @@ export default function (pi: ExtensionAPI) {
 	};
 
 	/**
-	 * Build the user message that makes the agent run the handoff skill.
-	 * Prefers pi's native /skill:handoff expansion (picks up the user's
-	 * installed/customised skill); falls back to the bundled skill body.
+	 * Wrap handoff-skill args for the agent. Prefers pi's native /skill:handoff
+	 * expansion (picks up the user's installed/customised skill); falls back to
+	 * the bundled skill body.
 	 */
-	const buildHandoffMessage = (
-		ctx: ExtensionContext,
-		thresholdPercent: number,
-		usedPercent: number,
-		handoffPath: string,
-	) => {
-		const args = renderHandoffArgs({
-			usedPercent,
-			remainingPercent: 100 - usedPercent,
-			thresholdPercent,
-			path: handoffPath,
-		});
+	const wrapSkillArgs = (ctx: ExtensionContext, args: string) => {
 		const installed = findHandoffSkill(ctx.cwd);
 		return installed
 			? `/skill:${SKILL_NAME} ${args}`
 			: buildInlineSkillMessage(SKILL_NAME, "(bundled with pi-auto-handoff)", BUNDLED_HANDOFF_SKILL_BODY, args);
 	};
 
-	/** Kick off the handoff run (used by /autohandoff test). */
-	const beginHandoff = (ctx: ExtensionContext, usedPercent: number | null) => {
+	/** Message for an automatic (low-context) handoff run. */
+	const buildAutoHandoffMessage = (
+		ctx: ExtensionContext,
+		thresholdPercent: number,
+		usedPercent: number,
+		handoffPath: string,
+	) =>
+		wrapSkillArgs(
+			ctx,
+			renderHandoffArgs({
+				usedPercent,
+				remainingPercent: 100 - usedPercent,
+				thresholdPercent,
+				path: handoffPath,
+			}),
+		);
+
+	/** Message for a manual handoff run started by /handoff. */
+	const buildManualHandoffMessage = (ctx: ExtensionContext, handoffPath: string, focus?: string) =>
+		wrapSkillArgs(ctx, renderManualHandoffArgs({ path: handoffPath, focus }));
+
+	/**
+	 * Bookkeep the start of a handoff run: advance the state machine to
+	 * "handoff" and record the trigger in the transcript. Returns the path the
+	 * document must be written to; the caller builds and sends the message.
+	 */
+	const startHandoffRun = (
+		ctx: ExtensionContext,
+		opts: { usedPercent: number | null; event: string; path?: string },
+	): { path: string; usedPercent: number } => {
 		const cfg = config();
-		const used = usedPercent ?? 100 - cfg.thresholdPercent;
-		const handoffPath = makeHandoffPath();
+		const used = opts.usedPercent ?? 100 - cfg.thresholdPercent;
+		const handoffPath = opts.path ?? makeHandoffPath();
 		handoffCount += 1;
 
 		state.phase = "handoff";
@@ -167,7 +185,7 @@ export default function (pi: ExtensionAPI) {
 		state.switchRequested = false;
 
 		pi.appendEntry("auto-handoff", {
-			event: "forced-trigger",
+			event: opts.event,
 			usedPercent: used,
 			thresholdPercent: cfg.thresholdPercent,
 			handoffPath,
@@ -175,14 +193,11 @@ export default function (pi: ExtensionAPI) {
 			mode: ctx.mode,
 		});
 
-		notify(ctx, `manual test — asking the agent to write a handoff doc to ${handoffPath}`, "warning");
-		pi.sendUserMessage(buildHandoffMessage(ctx, cfg.thresholdPercent, used, handoffPath), {
-			expandPromptTemplates: true,
-		});
+		return { path: handoffPath, usedPercent: used };
 	};
 
 	pi.registerFlag("auto-handoff-threshold", {
-		description: "pi-auto-handoff: trigger when this % of the context window remains (default 20)",
+		description: "pi-auto-handoff: trigger when this % of the context window remains (default 40)",
 		type: "string",
 	});
 	pi.registerFlag("no-auto-handoff", {
@@ -214,22 +229,15 @@ export default function (pi: ExtensionAPI) {
 
 		switch (decision.action) {
 			case "start-handoff": {
-				// decideAfterAgentEnd already advanced the state; send the skill message.
-				handoffCount += 1;
-				pi.appendEntry("auto-handoff", {
-					event: "trigger",
-					usedPercent: decision.usedPercent,
-					thresholdPercent: cfg.thresholdPercent,
-					handoffPath: decision.path,
-					handoffCount,
-					mode: ctx.mode,
-				});
+				// decideAfterAgentEnd already advanced the state; record the
+				// trigger and send the skill message.
+				startHandoffRun(ctx, { usedPercent: decision.usedPercent, event: "trigger", path: decision.path });
 				notify(
 					ctx,
 					`context at ${decision.usedPercent.toFixed(1)}% used (≤ ${cfg.thresholdPercent}% remaining) — handing off to a fresh session`,
 					"warning",
 				);
-				pi.sendUserMessage(buildHandoffMessage(ctx, cfg.thresholdPercent, decision.usedPercent, decision.path), {
+				pi.sendUserMessage(buildAutoHandoffMessage(ctx, cfg.thresholdPercent, decision.usedPercent, decision.path), {
 					expandPromptTemplates: true,
 				});
 				break;
@@ -287,7 +295,11 @@ export default function (pi: ExtensionAPI) {
 						notify(ctx, `cannot force: handoff already ${state.phase}`, "warning");
 						return;
 					}
-					beginHandoff(ctx, true, usage?.percent ?? null);
+					const run = startHandoffRun(ctx, { usedPercent: usage?.percent ?? null, event: "forced-trigger" });
+					notify(ctx, `manual test — asking the agent to write a handoff document to ${run.path}`, "warning");
+					pi.sendUserMessage(buildAutoHandoffMessage(ctx, cfg.thresholdPercent, run.usedPercent, run.path), {
+						expandPromptTemplates: true,
+					});
 					break;
 				}
 				default: {
@@ -300,6 +312,31 @@ export default function (pi: ExtensionAPI) {
 					notify(ctx, `threshold set to ${config().thresholdPercent}% remaining for this session`);
 				}
 			}
+		},
+	});
+
+	// Manual handoff: the user asks for the whole flow right now. The agent
+	// writes the handoff document; the usual agent_end machinery then dispatches
+	// /autohandoff-switch below, which starts a fresh session (cleared context)
+	// and immediately continues from the document. Works even when the automatic
+	// trigger is disabled — this is explicit user intent.
+	pi.registerCommand("handoff", {
+		description:
+			"Hand off now: write a handoff document, then continue in a fresh session from it (optional arg: focus for the next session)",
+		handler: async (args, ctx) => {
+			if (state.phase !== "idle") {
+				notify(ctx, `cannot hand off: handoff already ${state.phase}`, "warning");
+				return;
+			}
+			const focus = args.trim();
+			const run = startHandoffRun(ctx, {
+				usedPercent: ctx.getContextUsage()?.percent ?? null,
+				event: "manual-trigger",
+			});
+			notify(ctx, `handoff requested — asking the agent to write a handoff document to ${run.path}`, "warning");
+			pi.sendUserMessage(buildManualHandoffMessage(ctx, run.path, focus || undefined), {
+				expandPromptTemplates: true,
+			});
 		},
 	});
 

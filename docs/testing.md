@@ -15,7 +15,7 @@ node --test test/state.test.ts  # just the state machine
 
 Covered, among others:
 
-- trigger exactly at/above the threshold (default: 80% used ⇒ 20% remaining),
+- trigger exactly at/above the threshold (default: 60% used ⇒ 40% remaining),
 - no trigger when usage is unknown, disabled, wrong mode, queued messages, tiny session,
 - handoff phase: switch requested iff the document exists; abort on
   aborted/errored runs and on missing documents (with re-arm),
@@ -80,9 +80,9 @@ Then, inside pi:
    handoff should trigger again at the (now tiny) threshold, but **only once**;
    the fresh session must not loop (re-arm guard).
 
-Real-threshold test without waiting for 80% usage: `/autohandoff 95` is clamped
-to 90, i.e. trigger at 10% used — reachable after one or two messages in a
-fresh session with `minMessages: 4`.
+Real-threshold test without waiting for the default (60% used): `/autohandoff
+95` is clamped to 90, i.e. trigger at 10% used — reachable after one or two
+messages in a fresh session with `minMessages: 4`.
 
 ### Verifying the skill wiring
 

@@ -34,12 +34,36 @@ export interface HandoffArgsInput {
 export function renderHandoffArgs(input: HandoffArgsInput): string {
 	return [
 		`AUTO-HANDOFF (triggered automatically by the pi-auto-handoff extension, not by the user): ` +
-			`the context window is nearly full (${input.usedPercent.toFixed(1)}% used, only ` +
+			`the auto-handoff threshold is reached (${input.usedPercent.toFixed(1)}% used, ` +
 			`${input.remainingPercent.toFixed(1)}% left, threshold ${input.thresholdPercent}%).`,
 		`Write the handoff document to exactly this path: ${input.path}`,
 		`Do not ask for confirmation and do not start any new work. Finish the document promptly; ` +
 			`once the file exists, this session will automatically switch to a fresh one that continues from the handoff.`,
 	].join("\n");
+}
+
+export interface ManualHandoffArgsInput {
+	/** Exact path the handoff document must be written to. */
+	path: string;
+	/** Optional focus for the next session, verbatim from the user. */
+	focus?: string;
+}
+
+/**
+ * Arguments appended after `/skill:handoff` when the USER requested the handoff
+ * (via the /handoff command), as opposed to the automatic low-context trigger.
+ */
+export function renderManualHandoffArgs(input: ManualHandoffArgsInput): string {
+	const lines = [
+		"MANUAL HANDOFF (requested by the user via the /handoff command): write a handoff document now.",
+		`Write the handoff document to exactly this path: ${input.path}`,
+	];
+	if (input.focus) lines.push(`Focus of the handoff and of the next session: ${input.focus}`);
+	lines.push(
+		"Do not ask for confirmation and do not start any new work. Finish the document promptly; " +
+			"once the file exists, this session will switch to a fresh one that continues from the handoff.",
+	);
+	return lines.join("\n");
 }
 
 /**

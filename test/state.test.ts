@@ -40,22 +40,22 @@ const baseInput = (overrides: Partial<DecideInput> & { state?: AutoHandoffState 
 describe("decideAfterAgentEnd — idle phase", () => {
 	it("does nothing while plenty of context remains", () => {
 		const state = initialState();
-		const action = decideAfterAgentEnd(baseInput({ state, usage: usage(55) }));
+		const action = decideAfterAgentEnd(baseInput({ state, usage: usage(50) }));
 		assert.equal(action.action, "none");
 		assert.equal(state.phase, "idle");
 	});
 
-	it("triggers exactly at the threshold (20% remaining => used 80)", () => {
+	it("triggers exactly at the threshold (40% remaining => used 60)", () => {
 		const state = initialState();
-		const action = decideAfterAgentEnd(baseInput({ state, usage: usage(80) }));
+		const action = decideAfterAgentEnd(baseInput({ state, usage: usage(60) }));
 		assert.equal(action.action, "start-handoff");
-		assert.equal(action.action === "start-handoff" && action.remainingPercent, 20);
+		assert.equal(action.action === "start-handoff" && action.remainingPercent, 40);
 		assert.equal(state.phase, "handoff");
 		assert.ok(state.handoffPath?.startsWith("/tmp/fake-handoff-"));
 	});
 
-	it("triggers past the threshold (85% used)", () => {
-		const action = decideAfterAgentEnd(baseInput({ usage: usage(85) }));
+	it("triggers past the threshold (61% used)", () => {
+		const action = decideAfterAgentEnd(baseInput({ usage: usage(61) }));
 		assert.equal(action.action, "start-handoff");
 	});
 
