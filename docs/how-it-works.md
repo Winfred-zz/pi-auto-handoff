@@ -27,7 +27,15 @@ Guard conditions (each prevents a wrong-time handoff):
 
 ## The handoff run
 
-The extension sends one user message via `pi.sendUserMessage(..., { expandPromptTemplates: true })`:
+The trigger dispatches the internal `/autohandoff-begin <used%> <threshold%> <path>`
+command via `pi.sendUserMessage(..., { expandPromptTemplates: true })`. That
+indirection is required because of how pi queues messages: a plain user message
+sent from `agent_end` only lands in the queue — pi starts no new run for it once
+the TUI is idle, and the message is silently dropped when the user submits their
+own input first. Registered commands, however, do execute while idle, and a user
+message sent from inside a command handler starts a run immediately.
+
+The `autohandoff-begin` handler then sends the actual prompt:
 
 ```
 /skill:handoff AUTO-HANDOFF (triggered automatically ...): the auto-handoff
@@ -71,7 +79,8 @@ Failure handling:
 |---|---|
 | Handoff run aborted by the user (Esc) | State resets, error notification, no switch. Re-armed at the current usage level. |
 | Handoff run errored | Same as abort. |
-| Document missing after the run | Same as abort, with the path in the message. |
+| Prompt never reached the model (e.g. it was queued while idle and the user submitted first) | Dispatched once more via `autohandoff-begin` (max 2 attempts, recorded as `retry` in the transcript). If the retry is also lost, state resets with a notification. |
+| Document missing after a delivered prompt | Abort, with the path in the message. |
 | `newSession` cancelled (user declined) | Stay in the current session, state reset. |
 | Session switched | State resets via `session_start` (reason `new`) in the fresh session. |
 

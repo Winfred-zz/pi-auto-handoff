@@ -38,6 +38,7 @@ import {
 	completeSwitch,
 	decideAfterAgentEnd,
 	initialState,
+	MAX_HANDOFF_ATTEMPTS,
 	type AutoHandoffState,
 } from "./state.ts";
 
@@ -90,6 +91,27 @@ function fileExists(p: string | undefined): boolean {
 	} catch {
 		return false;
 	}
+}
+
+/**
+ * Whether the handoff prompt actually reached the model: some user message on
+ * the current branch contains the (per-trigger unique) handoff path. Handles
+ * both entry shapes seen in session files (wrapped and flat messages).
+ */
+function branchContainsHandoffPrompt(entries: readonly unknown[], handoffPath: string): boolean {
+	for (const entry of entries) {
+		const e = entry as {
+			role?: string;
+			content?: unknown;
+			message?: { role?: string; content?: unknown };
+		};
+		const role = e.message?.role ?? e.role;
+		if (role !== "user") continue;
+		const content = e.message?.content ?? e.content;
+		const text = typeof content === "string" ? content : JSON.stringify(content);
+		if (text.includes(handoffPath)) return true;
+	}
+	return false;
 }
 
 function makeHandoffPath(): string {
@@ -182,6 +204,7 @@ export default function (pi: ExtensionAPI) {
 		state.phase = "handoff";
 		state.handoffPath = handoffPath;
 		state.triggerPercent = used;
+		state.handoffAttempts = 1;
 		state.switchRequested = false;
 
 		pi.appendEntry("auto-handoff", {
@@ -213,6 +236,48 @@ export default function (pi: ExtensionAPI) {
 		state = initialState();
 	});
 
+	/**
+	 * Kick off (or retry) the handoff run by dispatching the internal
+	 * autohandoff-begin command. This indirection exists because a plain user
+	 * message sent from `agent_end` is only queued: pi starts no new run for it
+	 * once the TUI is idle, and the message is silently dropped when the user
+	 * submits their own input first. Registered commands, however, DO execute
+	 * while idle — and a user message sent from inside a command handler starts
+	 * a run immediately (this is how /handoff and the switch command work).
+	 */
+	const dispatchBegin = (ctx: ExtensionContext, handoffPath: string, usedPercent: number) => {
+		const cfgNow = config();
+		pi.sendUserMessage(`/autohandoff-begin ${usedPercent.toFixed(1)} ${cfgNow.thresholdPercent} ${handoffPath}`, {
+			expandPromptTemplates: true,
+		});
+	};
+
+	// Internal command: dispatched by the extension itself after an automatic
+	// trigger (and on retry). Runs while the agent is idle, then queues the
+	// handoff-skill message from command context, which reliably starts the run.
+	pi.registerCommand("autohandoff-begin", {
+		description: "Internal: send the handoff prompt after an automatic trigger",
+		handler: async (args, ctx) => {
+			const trimmed = args.trim();
+			const sep = trimmed.indexOf(" ");
+			const usedPercent = sep === -1 ? Number.NaN : Number(trimmed.slice(0, sep));
+			const handoffPath = sep === -1 ? "" : trimmed.slice(sep + 1).trim();
+			if (!Number.isFinite(usedPercent) || !handoffPath) {
+				notify(ctx, "begin aborted: expected usage-percent and handoff path", "error");
+				cancelSwitch(state);
+				return;
+			}
+			if (state.phase !== "handoff" || state.handoffPath !== handoffPath) {
+				// Stale dispatch (state moved on); ignore quietly.
+				return;
+			}
+			notify(ctx, `asking the agent to write the handoff document to ${handoffPath}`, "warning");
+			pi.sendUserMessage(buildAutoHandoffMessage(ctx, config().thresholdPercent, usedPercent, handoffPath), {
+				expandPromptTemplates: true,
+			});
+		},
+	});
+
 	pi.on("agent_end", async (event, ctx) => {
 		const cfg = config();
 		const decision = decideAfterAgentEnd({
@@ -224,22 +289,39 @@ export default function (pi: ExtensionAPI) {
 			messageCount: ctx.sessionManager.getBranch().length,
 			lastStopReason: lastAssistantStopReason(event.messages),
 			handoffFileExists: fileExists(state.handoffPath),
+			handoffPromptDelivered:
+				state.phase === "handoff" && state.handoffPath
+					? branchContainsHandoffPrompt(ctx.sessionManager.getBranch(), state.handoffPath)
+					: undefined,
 			makePath: makeHandoffPath,
 		});
 
 		switch (decision.action) {
 			case "start-handoff": {
 				// decideAfterAgentEnd already advanced the state; record the
-				// trigger and send the skill message.
+				// trigger and dispatch the handoff prompt via autohandoff-begin.
 				startHandoffRun(ctx, { usedPercent: decision.usedPercent, event: "trigger", path: decision.path });
 				notify(
 					ctx,
 					`context at ${decision.usedPercent.toFixed(1)}% used (≤ ${cfg.thresholdPercent}% remaining) — handing off to a fresh session`,
 					"warning",
 				);
-				pi.sendUserMessage(buildAutoHandoffMessage(ctx, cfg.thresholdPercent, decision.usedPercent, decision.path), {
-					expandPromptTemplates: true,
+				dispatchBegin(ctx, decision.path, decision.usedPercent);
+				break;
+			}
+			case "retry-handoff": {
+				pi.appendEntry("auto-handoff", {
+					event: "retry",
+					attempt: state.handoffAttempts,
+					of: MAX_HANDOFF_ATTEMPTS,
+					handoffPath: decision.path,
 				});
+				notify(
+					ctx,
+					`handoff prompt was lost before the model saw it — retrying (attempt ${state.handoffAttempts}/${MAX_HANDOFF_ATTEMPTS})`,
+					"warning",
+				);
+				dispatchBegin(ctx, decision.path, state.triggerPercent ?? 100 - cfg.thresholdPercent);
 				break;
 			}
 			case "request-switch":

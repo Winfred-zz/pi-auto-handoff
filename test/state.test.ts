@@ -138,6 +138,61 @@ describe("decideAfterAgentEnd — handoff phase", () => {
 		const action = decideAfterAgentEnd(baseInput({ state, handoffFileExists: true, lastStopReason: "error" }));
 		assert.equal(action.action, "abort-handoff");
 	});
+
+	it("retries instead of aborting when the prompt never reached the model", () => {
+		const state = initialState();
+		state.phase = "handoff";
+		state.handoffPath = "/tmp/lost.md";
+		state.triggerPercent = 69;
+		state.handoffAttempts = 1;
+		const action = decideAfterAgentEnd(
+			baseInput({ state, handoffFileExists: false, handoffPromptDelivered: false, usage: usage(70) }),
+		);
+		assert.equal(action.action, "retry-handoff");
+		assert.ok(action.action === "retry-handoff" && action.path === "/tmp/lost.md");
+		// Still in the handoff phase; attempt counted for the next round.
+		assert.equal(state.phase, "handoff");
+		assert.equal(state.handoffAttempts, 2);
+	});
+
+	it("gives up after the retry also fails to deliver the prompt", () => {
+		const state = initialState();
+		state.phase = "handoff";
+		state.handoffPath = "/tmp/lost.md";
+		state.handoffAttempts = 2;
+		const action = decideAfterAgentEnd(
+			baseInput({ state, handoffFileExists: false, handoffPromptDelivered: false, usage: usage(70) }),
+		);
+		assert.equal(action.action, "abort-handoff");
+		assert.match(action.action === "abort-handoff" ? action.reason : "", /did not reach the model/);
+		assert.equal(state.phase, "idle");
+	});
+
+	it("still aborts with not-found when the prompt was delivered but no doc was written", () => {
+		const state = initialState();
+		state.phase = "handoff";
+		state.handoffPath = "/tmp/missing.md";
+		state.handoffAttempts = 1;
+		const action = decideAfterAgentEnd(
+			baseInput({ state, handoffFileExists: false, handoffPromptDelivered: true, usage: usage(82) }),
+		);
+		assert.equal(action.action, "abort-handoff");
+		assert.match(action.action === "abort-handoff" ? action.reason : "", /not found/);
+	});
+
+	it("aborts immediately when the handoff state lost its path", () => {
+		const state = initialState();
+		state.phase = "handoff";
+		state.handoffPath = undefined;
+		const action = decideAfterAgentEnd(baseInput({ state, handoffFileExists: false }));
+		assert.equal(action.action, "abort-handoff");
+	});
+
+	it("sets handoffAttempts to 1 when triggering from idle", () => {
+		const state = initialState();
+		decideAfterAgentEnd(baseInput({ state, usage: usage(60) }));
+		assert.equal(state.handoffAttempts, 1);
+	});
 });
 
 describe("loop guards", () => {

@@ -19,6 +19,8 @@ export interface AutoHandoffState {
 	handoffPath?: string;
 	/** Context used (%) at the moment the handoff was triggered. */
 	triggerPercent?: number;
+	/** How many times the handoff prompt has been dispatched (1 on trigger). */
+	handoffAttempts?: number;
 	/**
 	 * Loop guard: after a handoff, do not trigger again until usedPercent rises
 	 * strictly above this value. -Infinity means armed.
@@ -39,10 +41,15 @@ export interface UsageSnapshot {
 	percent: number | null;
 }
 
+/** Total times the handoff prompt may be dispatched before giving up. */
+export const MAX_HANDOFF_ATTEMPTS = 2;
+
 export type HandoffAction =
 	| { action: "none" }
 	/** Ask the agent to run the handoff skill and write the doc to `path`. */
 	| { action: "start-handoff"; path: string; usedPercent: number; remainingPercent: number }
+	/** The prompt never reached the model; dispatch it again (attempt already counted). */
+	| { action: "retry-handoff"; path: string }
 	/** Handoff doc verified; dispatch the session-switch command. */
 	| { action: "request-switch"; path: string }
 	/** Give up on an in-flight handoff; state returns to idle (re-armed at `usedPercent`). */
@@ -65,6 +72,12 @@ export interface DecideInput {
 	lastStopReason?: string;
 	/** Whether the expected handoff document exists on disk (phase "handoff" only). */
 	handoffFileExists: boolean;
+	/**
+	 * Whether a user message containing the handoff path is on the branch, i.e.
+	 * the handoff prompt actually reached the model. Absent/true means "assume
+	 * delivered" so callers that cannot check keep the strict old behaviour.
+	 */
+	handoffPromptDelivered?: boolean;
 	/** Impure path factory, invoked only when a new handoff actually starts. */
 	makePath: () => string;
 }
@@ -87,12 +100,29 @@ export function decideAfterAgentEnd(input: DecideInput): HandoffAction {
 			return fail(input, `handoff run ended with stopReason "${input.lastStopReason}"`);
 		}
 		const path = state.handoffPath ?? "";
-		if (!path || !input.handoffFileExists) {
-			return fail(input, `handoff document not found at ${path || "<no path>"}`);
+		if (!path) {
+			return fail(input, "handoff state lost its document path");
 		}
-		state.phase = "switch";
-		state.switchRequested = true;
-		return { action: "request-switch", path };
+		if (input.handoffFileExists) {
+			state.phase = "switch";
+			state.switchRequested = true;
+			return { action: "request-switch", path };
+		}
+		// No document. Distinguish "the model never saw the prompt" (a queued
+		// message can get lost when the user submits their own input first) from
+		// "the model saw it but did not write the file".
+		const attempts = state.handoffAttempts ?? 1;
+		const delivered = input.handoffPromptDelivered !== false;
+		if (!delivered && attempts < MAX_HANDOFF_ATTEMPTS) {
+			state.handoffAttempts = attempts + 1;
+			return { action: "retry-handoff", path };
+		}
+		return fail(
+			input,
+			delivered
+				? `handoff document not found at ${path}`
+				: `handoff prompt did not reach the model after ${attempts} attempt(s)`,
+		);
 	}
 
 	if (state.phase !== "idle") return { action: "none" };
@@ -111,6 +141,7 @@ export function decideAfterAgentEnd(input: DecideInput): HandoffAction {
 	state.phase = "handoff";
 	state.handoffPath = path;
 	state.triggerPercent = usedPercent;
+	state.handoffAttempts = 1;
 	return {
 		action: "start-handoff",
 		path,

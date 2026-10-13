@@ -32,7 +32,9 @@ switches to a brand-new session and continues with:
   verifies it on disk; nothing is parsed out of model prose.
 - **Safe by design** — never triggers mid-run, with queued user messages, in
   tiny sessions, in `json`/`print` mode, or twice at the same usage level
-  (loop guard). Old sessions are kept as the parent of the new one.
+  (loop guard). If the handoff prompt gets lost before the model sees it
+  (queued while idle, user submits first), it is dispatched once more before
+  giving up. Old sessions are kept as the parent of the new one.
 - **Observable** — every trigger/switch/abort is recorded in the session
   transcript and `/autohandoff status` shows the live state machine.
 

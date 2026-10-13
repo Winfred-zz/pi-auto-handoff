@@ -1,6 +1,6 @@
 {
   "name": "pi-auto-handoff",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Pi extension that automatically hands the session off to a fresh context when the context window runs low (default: at 40% remaining), using the handoff skill.",
   "license": "MIT",
   "type": "module",
