@@ -248,6 +248,7 @@ export default function (pi: ExtensionAPI) {
 	const dispatchBegin = (ctx: ExtensionContext, handoffPath: string, usedPercent: number) => {
 		const cfgNow = config();
 		pi.sendUserMessage(`/autohandoff-begin ${usedPercent.toFixed(1)} ${cfgNow.thresholdPercent} ${handoffPath}`, {
+			deliverAs: "followUp",
 			expandPromptTemplates: true,
 		});
 	};
@@ -273,6 +274,7 @@ export default function (pi: ExtensionAPI) {
 			}
 			notify(ctx, `asking the agent to write the handoff document to ${handoffPath}`, "warning");
 			pi.sendUserMessage(buildAutoHandoffMessage(ctx, config().thresholdPercent, usedPercent, handoffPath), {
+				deliverAs: "followUp",
 				expandPromptTemplates: true,
 			});
 		},
@@ -325,7 +327,7 @@ export default function (pi: ExtensionAPI) {
 				break;
 			}
 			case "request-switch":
-				pi.sendUserMessage(`/autohandoff-switch ${decision.path}`, { expandPromptTemplates: true });
+				pi.sendUserMessage(`/autohandoff-switch ${decision.path}`, { deliverAs: "followUp", expandPromptTemplates: true });
 				break;
 			case "abort-handoff":
 				pi.appendEntry("auto-handoff", { event: "abort", reason: decision.reason });
@@ -380,6 +382,7 @@ export default function (pi: ExtensionAPI) {
 					const run = startHandoffRun(ctx, { usedPercent: usage?.percent ?? null, event: "forced-trigger" });
 					notify(ctx, `manual test — asking the agent to write a handoff document to ${run.path}`, "warning");
 					pi.sendUserMessage(buildAutoHandoffMessage(ctx, cfg.thresholdPercent, run.usedPercent, run.path), {
+						deliverAs: "followUp",
 						expandPromptTemplates: true,
 					});
 					break;
@@ -417,6 +420,7 @@ export default function (pi: ExtensionAPI) {
 			});
 			notify(ctx, `handoff requested — asking the agent to write a handoff document to ${run.path}`, "warning");
 			pi.sendUserMessage(buildManualHandoffMessage(ctx, run.path, focus || undefined), {
+				deliverAs: "followUp",
 				expandPromptTemplates: true,
 			});
 		},
